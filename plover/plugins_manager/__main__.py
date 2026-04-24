@@ -82,6 +82,10 @@ def list_plugins(freeze=False):
 def main(args=None):
     if args is None:
         args = sys.argv[1:]
+    if not args:
+        print("Usage: plover_plugins <command> [args]")
+        print("Commands: list_plugins [--freeze], check, install, uninstall, list")
+        sys.exit(2)
     if args[0] == "list_plugins":
         assert len(args) <= 2
         if len(args) > 1:
