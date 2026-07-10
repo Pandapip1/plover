@@ -355,9 +355,12 @@ class StenoEngine:
         if config_update:
             self._trigger_hook("config_changed", config_update)
         # Update dictionaries.
+        self._load_dictionaries()
+
+    def _load_dictionaries(self):
+        config = self._config.as_dict()
         config_dictionaries = OrderedDict((d.path, d) for d in config["dictionaries"])
         copy_default_dictionaries(config_dictionaries.keys())
-        # Start by unloading outdated dictionaries.
         self._dictionaries_manager.unload_outdated()
         self._set_dictionaries(
             [
@@ -367,7 +370,6 @@ class StenoEngine:
                 and d.path in self._dictionaries_manager
             ]
         )
-        # And then (re)load all dictionaries.
         dictionaries = []
         for d in self._dictionaries_manager.load(config_dictionaries.keys()):
             if isinstance(d, ErroredDictionary):
@@ -381,6 +383,17 @@ class StenoEngine:
             d.enabled = config_dictionaries[d.path].enabled
             dictionaries.append(d)
         self._set_dictionaries(dictionaries)
+
+    def _reload_config(self):
+        """Reload config at runtime, keeping the current config if the reload
+        fails."""
+        log.debug("reloading config")
+        try:
+            self._config.load()
+        except Exception:
+            log.error("reloading configuration failed", exc_info=True)
+            return
+        self._update(full=True)
 
     def _start_extensions(self, extension_list):
         for extension_name in extension_list:
@@ -580,9 +593,18 @@ class StenoEngine:
         """
         self._same_thread_hook(self._update, reset_machine=True)
 
+    def reload_dictionaries(self) -> None:
+        """Reloads all dictionaries from disk without resetting the machine."""
+        self._same_thread_hook(self._load_dictionaries)
+
+    def reload_config(self) -> None:
+        """Reloads the configuration from disk and re-applies all settings."""
+        self._same_thread_hook(self._reload_config)
+
     def load_config(self) -> bool:
         """Loads the Plover configuration file and returns ``True`` if it was
-        loaded successfully, ``False`` if not.
+        loaded successfully, ``False`` if not. On failure the config is reset
+        to defaults.
         """
         try:
             self._config.load()
