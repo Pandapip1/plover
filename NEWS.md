@@ -1,3 +1,30 @@
+# v5.4.0 (2026-07-10)
+
+
+## Features
+
+### Core
+
+- Add reconnect_machine, reload_dictionaries, and reload_config commands. (#1847)
+
+### Linux
+
+- Add a keyboard selection option on Wayland. (#1815)
+
+## Bugfixes
+
+### Core
+
+- If plover_plugins does not have arguments, print available arguments and exit. (#1842)
+
+### Windows
+
+- Update Windows installer NSI to remove all files. (#1842)
+
+## API
+
+No significant changes.
+
 # v5.3.0 (2026-04-09)
 
 
