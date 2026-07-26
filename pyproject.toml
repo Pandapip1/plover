@@ -1,11 +1,19 @@
 [build-system]
 requires = [
 	"babel",
+	"packaging",
 	"PySide6>=6.9.0",
 	"setuptools>=79.0.0",
 	"wheel",
 ]
 build-backend = "setuptools.build_meta"
+
+[tool.ruff.lint]
+ignore = [
+	# Broad `except Exception` is Plover's deliberate crash-resilience idiom:
+	# engine hooks, plugin and dictionary loading must never take down the engine.
+	"BLE001",
+]
 
 [tool.towncrier]
 name = ""
