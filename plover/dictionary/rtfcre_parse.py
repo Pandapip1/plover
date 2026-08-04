@@ -38,6 +38,8 @@ def finalize_translation(text):
 def parse_rtfcre(text, normalize=lambda s: s, skip_errors=True):
     not_text = r"\{}"
     style_rx = re.compile("s[0-9]+")
+    unicode_rx = re.compile("u-?[0-9]+")
+    uc_rx = re.compile("uc[0-9]+")
     tokenizer = RtfTokenizer(text)
     next_token = tokenizer.next_token
     rewind_token = tokenizer.rewind_token
@@ -46,6 +48,11 @@ def parse_rtfcre(text, normalize=lambda s: s, skip_errors=True):
         raise BadRtfError("invalid header")
     # Parse header/document.
     g_destination, g_text = "rtf1", ""
+    # Number of fallback characters written after each `\uN` escape,
+    # per group. 1 is the RTF default.
+    g_uc = 1
+    # Number of fallback characters still to be skipped.
+    skip_count = 0
     group_stack = deque()
     stylesheet = {}
     steno = None
@@ -143,8 +150,9 @@ def parse_rtfcre(text, normalize=lambda s: s, skip_errors=True):
                 if stack_depth:
                     break
                 continue
-            group_stack.append((g_destination, g_text))
+            group_stack.append((g_destination, g_text, g_uc))
             g_destination, g_text = destination, ""
+            skip_count = 0
             if rewind:
                 rewind_token(token)
             continue
@@ -206,7 +214,8 @@ def parse_rtfcre(text, normalize=lambda s: s, skip_errors=True):
                 stylesheet[g_destination] = g_text
             else:
                 text = g_text
-            g_destination, g_text = group_stack.pop()
+            g_destination, g_text, g_uc = group_stack.pop()
+            skip_count = 0
             g_text += text
             continue
         # Control char/word.
@@ -240,7 +249,29 @@ def parse_rtfcre(text, normalize=lambda s: s, skip_errors=True):
                 "cxfl": "{>}",
             }.get(ctrl)
             if text is not None:
-                g_text += text
+                if skip_count:
+                    skip_count -= 1
+                else:
+                    g_text += text
+            # Unicode escape.
+            elif unicode_rx.fullmatch(ctrl):
+                code_unit = int(ctrl[1:]) & 0xFFFF
+                if (
+                    0xDC00 <= code_unit < 0xE000
+                    and g_text
+                    and 0xD800 <= ord(g_text[-1]) < 0xDC00
+                ):
+                    # Low surrogate: combine with the preceding high one.
+                    high = ord(g_text[-1]) - 0xD800
+                    g_text = g_text[:-1] + chr(
+                        0x10000 + (high << 10) + (code_unit - 0xDC00)
+                    )
+                else:
+                    g_text += chr(code_unit)
+                skip_count = g_uc
+            # Number of fallback characters following a unicode escape.
+            elif uc_rx.fullmatch(ctrl):
+                g_uc = int(ctrl[2:])
             # Delete Spaces.
             elif ctrl == "cxds":
                 token = next_token()
@@ -284,6 +315,12 @@ def parse_rtfcre(text, normalize=lambda s: s, skip_errors=True):
             continue
         # Text.
         text = token
+        if skip_count:
+            skipped = min(skip_count, len(text))
+            skip_count -= skipped
+            text = text[skipped:]
+            if not text:
+                continue
         token = next_token()
         if token == r"\cxds":
             # Suffix.
