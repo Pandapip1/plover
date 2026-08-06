@@ -21,6 +21,7 @@ from plover.resource import resource_update
 # General configuration sections, options and defaults.
 APPEARANCE_CONFIG_SECTION = "Appearance"
 MACHINE_CONFIG_SECTION = "Machine Configuration"
+KEYBOARD_CAPTURE_CONFIG_SECTION = "Keyboard Capture Configuration"
 
 LEGACY_DICTIONARY_CONFIG_SECTION = "Dictionary Configuration"
 
@@ -283,6 +284,59 @@ def machine_specific_options():
     )
 
 
+def keyboard_capture_specific_options():
+    def full_key(config, key):
+        if isinstance(key, tuple):
+            assert len(key) == 2
+            return key
+        return (key, config["keyboard_capture_type"])
+
+    def default(config, key):
+        keyboard_capture_class = registry.get_plugin("keyboard_capture", key[1]).obj
+        return {
+            name: params[0]
+            for name, params in keyboard_capture_class.get_option_info().items()
+        }
+
+    def getter(config, key):
+        return config._config[key[1]]
+
+    def setter(config, key, value):
+        config._config[key[1]] = value
+
+    def validate(config, key, raw_options):
+        if not isinstance(raw_options, (dict, configparser.SectionProxy)):
+            raise InvalidConfigOption(raw_options, default(config, key))
+        keyboard_capture_options = OrderedDict()
+        invalid_options = OrderedDict()
+        keyboard_capture_class = registry.get_plugin("keyboard_capture", key[1]).obj
+        for name, params in sorted(keyboard_capture_class.get_option_info().items()):
+            fallback, convert = params
+            try:
+                raw_value = raw_options[name]
+            except KeyError:
+                value = fallback
+            else:
+                try:
+                    value = convert(raw_value)
+                except ValueError:
+                    invalid_options[name] = raw_value
+                    value = fallback
+            keyboard_capture_options[name] = value
+        if invalid_options:
+            raise InvalidConfigOption(invalid_options, keyboard_capture_options)
+        return keyboard_capture_options
+
+    return ConfigOption(
+        "keyboard_capture_specific_options",
+        default,
+        getter,
+        setter,
+        validate,
+        full_key,
+    )
+
+
 def system_keymap_option():
     def full_key(config, key):
         if isinstance(key, tuple):
@@ -495,6 +549,14 @@ class Config:
                 "machine_type", "machine", "Keyboard", MACHINE_CONFIG_SECTION
             ),
             machine_specific_options(),
+            # Keyboard capture.
+            plugin_option(
+                "keyboard_capture_type",
+                "keyboard_capture",
+                "Automatic",
+                KEYBOARD_CAPTURE_CONFIG_SECTION,
+            ),
+            keyboard_capture_specific_options(),
             # System.
             plugin_option(
                 "system_name", "system", DEFAULT_SYSTEM_NAME, "System", "name"
