@@ -5,10 +5,8 @@
 
 from plover import _
 from plover.machine.base import StenotypeBase
+from plover.machine.keyboard_capture import get_active_keyboard_capture
 from plover.misc import boolean
-from plover.oslayer.config import PLATFORM
-from plover.oslayer.keyboardcontrol import KeyboardCapture
-from plover.oslayer.linux.display_server import DISPLAY_SERVER
 
 # i18n: Machine name.
 _._("Keyboard")
@@ -89,8 +87,8 @@ class Keyboard(StenotypeBase):
         """Begin listening for output from the stenotype machine."""
         self._initializing()
         try:
-            self._keyboard_capture = KeyboardCapture()
-            if PLATFORM == "linux" and DISPLAY_SERVER == "wayland":
+            self._keyboard_capture = get_active_keyboard_capture().create({})
+            if hasattr(self._keyboard_capture, "set_keyboard_selection"):
                 self._keyboard_capture.set_keyboard_selection(self._keyboard_selection)
             self._keyboard_capture.key_down = self._key_down
             self._keyboard_capture.key_up = self._key_up

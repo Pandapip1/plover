@@ -1,13 +1,11 @@
 from unittest import mock
 
 import pytest
-from plover.oslayer.keyboardcontrol import KeyboardCapture
 
 from plover import system
 from plover.machine.keyboard import Keyboard
+from plover.machine.keyboard_capture import Capture
 from plover.machine.keymap import Keymap
-from plover.oslayer.config import PLATFORM
-from plover.oslayer.linux.display_server import DISPLAY_SERVER
 
 
 def send_input(capture, key_events):
@@ -21,10 +19,21 @@ def send_input(capture, key_events):
             capture.key_up(evt)
 
 
+def _patch_active_keyboard_capture(capture):
+    keyboard_capture_class = mock.MagicMock()
+    keyboard_capture_class.create.return_value = capture
+    return mock.patch(
+        "plover.machine.keyboard.get_active_keyboard_capture",
+        return_value=keyboard_capture_class,
+    )
+
+
 @pytest.fixture
 def capture():
-    capture = mock.MagicMock(spec=KeyboardCapture)
-    with mock.patch("plover.machine.keyboard.KeyboardCapture", new=lambda: capture):
+    # `spec=Capture` excludes `set_keyboard_selection`, only on some backends;
+    # see `test_lifecycle_with_keyboard_selection_support` for those.
+    capture = mock.MagicMock(spec=Capture)
+    with _patch_active_keyboard_capture(capture):
         yield capture
 
 
@@ -67,17 +76,10 @@ def strokes(machine):
 def test_lifecycle(capture, machine, strokes):
     # Start machine.
     machine.start_capture()
-    if PLATFORM == "linux" and DISPLAY_SERVER == "wayland":
-        assert capture.mock_calls == [
-            mock.call.set_keyboard_selection(""),
-            mock.call.start(),
-            mock.call.suppress(()),
-        ]
-    else:
-        assert capture.mock_calls == [
-            mock.call.start(),
-            mock.call.suppress(()),
-        ]
+    assert capture.mock_calls == [
+        mock.call.start(),
+        mock.call.suppress(()),
+    ]
     capture.reset_mock()
     machine.set_suppression(True)
     suppressed_keys = dict(machine.keymap.get_bindings())
@@ -102,6 +104,31 @@ def test_lifecycle(capture, machine, strokes):
         mock.call.suppress(()),
         mock.call.cancel(),
     ]
+
+
+def test_lifecycle_with_keyboard_selection_support():
+    # `start_capture` should call `set_keyboard_selection` only when the
+    # active backend supports it (e.g. Linux uinput under Wayland).
+    capture = mock.MagicMock(
+        spec=[
+            "start",
+            "cancel",
+            "suppress",
+            "key_down",
+            "key_up",
+            "set_keyboard_selection",
+        ]
+    )
+    with _patch_active_keyboard_capture(capture):
+        machine = Keyboard(
+            {
+                "arpeggiate": False,
+                "first_up_chord_send": False,
+                "keyboard_selection": "some device",
+            }
+        )
+        machine.start_capture()
+    capture.set_keyboard_selection.assert_called_once_with("some device")
 
 
 def test_unfinished_stroke_1(capture, machine, strokes):
