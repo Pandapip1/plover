@@ -15,8 +15,12 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 from plover import _, __version__, log
 from plover import __name__ as __software_name__
 from plover.gui_qt.engine import Engine
+from plover.machine.keyboard_capture import (
+    resolve_keyboard_capture,
+    set_active_keyboard_capture,
+)
 from plover.oslayer.config import CONFIG_DIR
-from plover.oslayer.keyboardcontrol import KeyboardEmulation
+from plover.output import create_keyboard_emulation
 
 # Disable input hook to avoid getting spammed when using the debugger.
 # import pdb
@@ -56,8 +60,16 @@ class Application:
 
         QApplication.setQuitOnLastWindowClosed(False)
 
+        set_active_keyboard_capture(
+            resolve_keyboard_capture(config["keyboard_capture_type"])
+        )
         self._app.engine = self._engine = Engine(
-            config, controller, KeyboardEmulation()
+            config,
+            controller,
+            create_keyboard_emulation(
+                config["keyboard_emulation_type"],
+                config["keyboard_emulation_specific_options"],
+            ),
         )
         # On macOS, quitting through the dock will result
         # in a direct call to `QCoreApplication.quit`.

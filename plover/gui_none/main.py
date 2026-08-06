@@ -1,7 +1,11 @@
 from threading import Event
 
 from plover.gui_none.engine import Engine
-from plover.oslayer.keyboardcontrol import KeyboardEmulation
+from plover.machine.keyboard_capture import (
+    resolve_keyboard_capture,
+    set_active_keyboard_capture,
+)
+from plover.output import create_keyboard_emulation
 
 
 def show_error(title, message):
@@ -9,7 +13,17 @@ def show_error(title, message):
 
 
 def main(config, controller):
-    engine = Engine(config, controller, KeyboardEmulation())
+    set_active_keyboard_capture(
+        resolve_keyboard_capture(config["keyboard_capture_type"])
+    )
+    engine = Engine(
+        config,
+        controller,
+        create_keyboard_emulation(
+            config["keyboard_emulation_type"],
+            config["keyboard_emulation_specific_options"],
+        ),
+    )
     if not engine.load_config():
         return 3
     quitting = Event()

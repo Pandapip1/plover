@@ -126,9 +126,8 @@ class StenoEngine:
         controller (plover.oslayer.controller.Controller): An instance of
             :class:`Controller<plover.oslayer.controller.Controller>` for managing
             commands sent to this Plover instance. This is provided during startup.
-        keyboard_emulation (plover.oslayer.keyboardcontrol.KeyboardEmulation): An
-            instance of
-            :class:`KeyboardEmulation<plover.oslayer.keyboardcontrol.KeyboardEmulation>`
+        keyboard_emulation (plover.output.Output): An instance of a
+            ``"keyboard_emulation"`` plugin (see :mod:`plover.registry`),
             provided during startup.
         HOOKS (List[str]): A list of all the possible engine hooks. See
             :ref:`engine-hooks` below for a list of valid hooks.
