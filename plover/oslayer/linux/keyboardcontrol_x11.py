@@ -32,6 +32,7 @@ from Xlib.ext.ge import GenericEventCode
 from plover import log
 from plover.key_combo import add_modifiers_aliases, parse_key_combo
 from plover.machine.keyboard_capture import Capture
+from plover.oslayer.linux.display_server import DISPLAY_SERVER
 from plover.output.keyboard import GenericKeyboardEmulation
 
 # Enable support for media keys.
@@ -196,6 +197,10 @@ class XEventLoop:
 
 
 class KeyboardCapture(Capture):
+    @classmethod
+    def is_supported(cls) -> bool:
+        return DISPLAY_SERVER == "x11"
+
     def __init__(self):
         super().__init__()
         self._event_loop = None
@@ -1127,6 +1132,10 @@ def keysym_to_string(keysym):
 
 
 class KeyboardEmulation(GenericKeyboardEmulation):
+    @classmethod
+    def is_supported(cls) -> bool:
+        return DISPLAY_SERVER == "x11"
+
     class Mapping:
         def __init__(self, keycode, modifiers, keysym, custom_mapping=None):
             self.keycode = keycode

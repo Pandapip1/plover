@@ -45,6 +45,20 @@ DEFAULT_MODIFIER_EV_KEYCODES: set[int] = {
     e.KEY_RIGHTMETA,
 }
 
+UINPUT_DEVICE_PATH = "/dev/uinput"
+
+
+def _uinput_missing_requirements() -> list[str]:
+    """Checks `/dev/uinput` is usable, so permission errors surface as this
+    backend being unavailable rather than a crash inside `UInput()`.
+    """
+    try:
+        with open(UINPUT_DEVICE_PATH, "wb"):
+            pass
+    except OSError as exc:
+        return [f"cannot open {UINPUT_DEVICE_PATH} for writing: {exc.strerror}"]
+    return []
+
 
 def get_available_devices():
     input_devices = [InputDevice(path) for path in list_devices()]
@@ -67,9 +81,15 @@ def filter_devices(device):
 
 
 class KeyboardEmulation(GenericKeyboardEmulation):
+    AUTOMATIC_PRIORITY = 10
+
     # Map of Plover key name to EV keycode and modifiers
     _key_to_keycodeinfo: dict[str, KeyCodeInfo]
     _can_send_unicode: bool = True
+
+    @classmethod
+    def get_missing_requirements(cls) -> list[str]:
+        return _uinput_missing_requirements()
 
     def __init__(self):
         super().__init__()
@@ -216,6 +236,8 @@ class KeyboardEmulation(GenericKeyboardEmulation):
 
 
 class KeyboardCapture(Capture):
+    AUTOMATIC_PRIORITY = 10
+
     _selector: selectors.DefaultSelector
     _device_thread: threading.Thread | None
     # Pipes to signal `_run` thread to stop
@@ -223,6 +245,10 @@ class KeyboardCapture(Capture):
     _device_thread_write_pipe: int | None
     # EV keycodes of modifier keys
     _modifier_ev_keycodes: set[int]
+
+    @classmethod
+    def get_missing_requirements(cls) -> list[str]:
+        return _uinput_missing_requirements()
 
     def __init__(self):
         super().__init__()
