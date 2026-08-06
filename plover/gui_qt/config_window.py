@@ -346,6 +346,21 @@ class ConfigWindow(QDialog, Ui_ConfigWindow, WindowStateMixin):
         machines = {
             plugin.name: _(plugin.name) for plugin in registry.list_plugins("machine")
         }
+
+        def _available_choices(plugin_type):
+            choices = {}
+            for plugin in registry.list_plugins(plugin_type):
+                if not plugin.obj.is_supported():
+                    continue
+                label = _(plugin.name)
+                missing = plugin.obj.get_missing_requirements()
+                if missing:
+                    label = f"{label} ({_('unavailable')}: {'; '.join(missing)})"
+                choices[plugin.name] = label
+            return choices
+
+        keyboard_captures = _available_choices("keyboard_capture")
+        keyboard_emulations = _available_choices("keyboard_emulation")
         mappings = (
             # i18n: Widget: “ConfigWindow”.
             (
@@ -457,12 +472,55 @@ class ConfigWindow(QDialog, Ui_ConfigWindow, WindowStateMixin):
                         _("Options:"), "machine_specific_options", self._machine_option
                     ),
                     ConfigOption(_("Keymap:"), "system_keymap", KeymapOption),
+                    ConfigOption(
+                        _("Keyboard capture backend:"),
+                        "keyboard_capture_type",
+                        partial(ChoiceOption, choices=keyboard_captures),
+                        _(
+                            "Set how Plover captures keyboard input, when using the "
+                            "Keyboard machine.\n"
+                            "\n"
+                            "Takes effect after restarting Plover."
+                        ),
+                        dependents=(
+                            (
+                                "keyboard_capture_specific_options",
+                                self._update_keyboard_capture_options,
+                            ),
+                        ),
+                    ),
+                    ConfigOption(
+                        _("Keyboard capture options:"),
+                        "keyboard_capture_specific_options",
+                        self._keyboard_capture_option,
+                    ),
                 ),
             ),
             # i18n: Widget: “ConfigWindow”.
             (
                 _("Output"),
                 (
+                    ConfigOption(
+                        _("Keyboard emulation backend:"),
+                        "keyboard_emulation_type",
+                        partial(ChoiceOption, choices=keyboard_emulations),
+                        _(
+                            "Set how Plover emulates keyboard output.\n"
+                            "\n"
+                            "Takes effect after restarting Plover."
+                        ),
+                        dependents=(
+                            (
+                                "keyboard_emulation_specific_options",
+                                self._update_keyboard_emulation_options,
+                            ),
+                        ),
+                    ),
+                    ConfigOption(
+                        _("Keyboard emulation options:"),
+                        "keyboard_emulation_specific_options",
+                        self._keyboard_emulation_option,
+                    ),
                     ConfigOption(
                         _("Enable at start:"),
                         "auto_start",
@@ -660,6 +718,16 @@ class ConfigWindow(QDialog, Ui_ConfigWindow, WindowStateMixin):
                 start_minimized_option.label.hide()
                 start_minimized_option.widget.hide()
 
+        self._keyboard_capture_options = [
+            option
+            for option in (
+                option_by_name.get("keyboard_capture_type"),
+                option_by_name.get("keyboard_capture_specific_options"),
+            )
+            if option is not None
+        ]
+        self._update_keyboard_capture_visibility()
+
         # Update dependents.
         for option in option_by_name.values():
             option.dependents = [
@@ -721,6 +789,62 @@ class ConfigWindow(QDialog, Ui_ConfigWindow, WindowStateMixin):
             ("machine_specific_options", machine_type or self._config["machine_type"])
         ]
 
+    def _keyboard_backend_option(self, gui_option_plugin_type, backend_class, *args):
+        backend_options = {
+            plugin.name: plugin.obj
+            for plugin in registry.list_plugins(gui_option_plugin_type)
+        }
+        for klass in backend_class.mro():
+            # Look for `module_name:class_name` before `class_name`.
+            for name in (
+                f"{klass.__module__}:{klass.__name__}",
+                klass.__name__,
+            ):
+                opt_class = backend_options.get(name)
+                if opt_class is not None:
+                    return opt_class(*args)
+        return NopeOption(*args)
+
+    def _keyboard_capture_option(self, *args):
+        keyboard_capture_type = self._config["keyboard_capture_type"]
+        keyboard_capture_class = registry.get_plugin(
+            "keyboard_capture", keyboard_capture_type
+        ).obj
+        return self._keyboard_backend_option(
+            "gui.qt.keyboard_capture_option", keyboard_capture_class, *args
+        )
+
+    def _update_keyboard_capture_options(self, keyboard_capture_type=None):
+        return self._engine[
+            (
+                "keyboard_capture_specific_options",
+                keyboard_capture_type or self._config["keyboard_capture_type"],
+            )
+        ]
+
+    def _keyboard_emulation_option(self, *args):
+        keyboard_emulation_type = self._config["keyboard_emulation_type"]
+        keyboard_emulation_class = registry.get_plugin(
+            "keyboard_emulation", keyboard_emulation_type
+        ).obj
+        return self._keyboard_backend_option(
+            "gui.qt.keyboard_emulation_option", keyboard_emulation_class, *args
+        )
+
+    def _update_keyboard_emulation_options(self, keyboard_emulation_type=None):
+        return self._engine[
+            (
+                "keyboard_emulation_specific_options",
+                keyboard_emulation_type or self._config["keyboard_emulation_type"],
+            )
+        ]
+
+    def _update_keyboard_capture_visibility(self, machine_type=None):
+        visible = (machine_type or self._config["machine_type"]) == "Keyboard"
+        for option in self._keyboard_capture_options:
+            option.label.setVisible(visible)
+            option.widget.setVisible(visible)
+
     def _update_keymap(self, system_name=None, machine_type=None):
         return self._engine[
             (
@@ -747,6 +871,8 @@ class ConfigWindow(QDialog, Ui_ConfigWindow, WindowStateMixin):
 
     def on_option_changed(self, option, value):
         self._config[option.option_name] = value
+        if option.option_name == "machine_type":
+            self._update_keyboard_capture_visibility(machine_type=value)
         for dependent, update_fn in option.dependents:
             # Ensure unsaved changes are discarded.
             if dependent.option_name in self._config.maps[0]:
