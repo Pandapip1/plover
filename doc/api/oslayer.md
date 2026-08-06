@@ -12,7 +12,6 @@ This is an umbrella package for platform-specific functionality:
 oslayer_config
 oslayer_controller
 oslayer_i18n
-oslayer_keyboardcontrol
 oslayer_log
 oslayer_wmctrl
 ```
