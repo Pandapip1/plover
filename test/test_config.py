@@ -75,6 +75,12 @@ class FakeKeyboardCapture:
         return {}
 
 
+class FakeKeyboardEmulation:
+    @staticmethod
+    def get_option_info():
+        return {}
+
+
 class FakeSystem:
     KEYS = english_stenotype.KEYS
     IMPLICIT_HYPHEN_KEYS = ()
@@ -155,6 +161,8 @@ DEFAULTS = {
     },
     "keyboard_capture_type": "Automatic",
     "keyboard_capture_specific_options": {},
+    "keyboard_emulation_type": "Automatic",
+    "keyboard_emulation_specific_options": {},
     "system_name": config.DEFAULT_SYSTEM_NAME,
     "system_keymap": DEFAULT_KEYMAP,
     "dictionaries": [
@@ -565,6 +573,7 @@ def test_config(
     registry.register_plugin("machine", "Keyboard", Keyboard)
     registry.register_plugin("machine", "Faky faky", FakeMachine)
     registry.register_plugin("keyboard_capture", "Automatic", FakeKeyboardCapture)
+    registry.register_plugin("keyboard_emulation", "Automatic", FakeKeyboardEmulation)
     registry.register_plugin("system", "English Stenotype", english_stenotype)
     registry.register_plugin("system", "Faux système", FakeSystem)
     monkeypatch.setattr("plover.config.registry", registry)
@@ -638,6 +647,7 @@ def test_config_missing_ints(
     registry = Registry()
     registry.register_plugin("machine", "Keyboard", Keyboard)
     registry.register_plugin("keyboard_capture", "Automatic", FakeKeyboardCapture)
+    registry.register_plugin("keyboard_emulation", "Automatic", FakeKeyboardEmulation)
     registry.register_plugin("system", "English Stenotype", english_stenotype)
     monkeypatch.setattr("plover.config.registry", registry)
     config_file = tmpdir / "config.cfg"
