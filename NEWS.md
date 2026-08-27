@@ -1,3 +1,27 @@
+# v5.4.1 (2026-08-27)
+
+
+## Features
+
+No significant changes.
+
+## Bugfixes
+
+### Core
+
+- Fix RTF dictionary export failing on characters outside code page 1252; they are now escaped with the RTF `\uN` control word. (#1705)
+- Treat unbound keys as no-op. (#1850)
+
+### User Interface
+
+- Fix `_pythonToCppCopy: Cannot copy-convert <set> to C++` warnings on startup. (#1854)
+- Fix the Traditional Chinese translation never loading on case-sensitive filesystems. (#1859)
+- Fix a crash when showing an error dialog during a failed startup. (#1863)
+
+## API
+
+No significant changes.
+
 # v5.4.0 (2026-07-10)
 
 
