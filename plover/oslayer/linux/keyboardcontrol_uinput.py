@@ -1,8 +1,8 @@
+import ctypes
+import ctypes.util
 import os
 import selectors
 import threading
-import ctypes
-import ctypes.util
 
 from evdev import (
     InputDevice,
@@ -15,6 +15,7 @@ from evdev import (
 from evdev import (
     ecodes as e,
 )
+
 from plover import log
 from plover.key_combo import parse_key_combo
 from plover.machine.keyboard_capture import Capture
@@ -109,7 +110,7 @@ class KeyboardEmulation(GenericKeyboardEmulation):
                     log.warning(f"Unable to connect to session bus: {error}")
                     error_free(error)
                 elif bus is None:
-                    log.warning(f"Unable to connect to session bus (returned null)")
+                    log.warning("Unable to connect to session bus (returned null)")
                 else:
                     for name in IME_DBUS_NAMES:
                         error_init(error)
