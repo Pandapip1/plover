@@ -136,7 +136,7 @@ def test_engine_lifecycle(engine):
     assert FakeMachine.instance.is_suppressed
     # Machine reconnection.
     engine.events.clear()
-    engine.reset_machine()
+    engine.reset_state()
     assert engine.events == [
         ("machine_state_changed", ("Fake", STATE_STOPPED), {}),
         ("machine_state_changed", ("Fake", STATE_INITIALIZING), {}),

@@ -65,6 +65,8 @@ Attributes:
         system to this machine.
 """
 
+OutputParams = namedtuple("OutputParams", "type options")
+
 
 class ErroredDictionary(StenoDictionary):
     """A placeholder class for a dictionary that failed to load.
@@ -171,7 +173,7 @@ class StenoEngine:
     quit
     """.split()
 
-    def __init__(self, config: Any, controller: Any, keyboard_emulation: Any):
+    def __init__(self, config: Any, controller: Any):
         self._config = config
         self._controller = controller
         self._is_running = False
@@ -180,6 +182,7 @@ class StenoEngine:
         self._machine = None
         self._machine_state = None
         self._machine_params = MachineParams(None, None, None)
+        self._output_params = OutputParams(None, None)
         self._formatter = Formatter()
         self._formatter.set_output(
             Formatter.output_type(
@@ -199,7 +202,7 @@ class StenoEngine:
         )
         self._running_state = self._translator.get_state()
         self._translator.clear_state()
-        self._keyboard_emulation = keyboard_emulation
+        self._keyboard_emulation = None
         self._hooks = {hook: [] for hook in self.HOOKS}
         self._running_extensions = {}
 
@@ -272,7 +275,7 @@ class StenoEngine:
             "dictionaries_loaded", StenoDictionaryCollection(dictionaries)
         )
 
-    def _update(self, config_update=None, full=False, reset_machine=False):
+    def _update(self, config_update=None, full=False, reset_state=False):
         original_config = self._config.as_dict()
         # Update configuration.
         if config_update is not None:
@@ -324,8 +327,8 @@ class StenoEngine:
             or self._machine_params.type != machine_params.type
             or self._machine_params.options != machine_params.options
         ):
-            reset_machine = True
-        if reset_machine:
+            reset_state = True
+        if reset_state:
             if self._machine is not None:
                 self._machine.stop_capture()
                 self._machine = None
@@ -346,6 +349,45 @@ class StenoEngine:
                 self._machine.set_keymap(machine_keymap)
         if start_machine:
             self._machine.start_capture()
+        # Update output
+        output_params = OutputParams(
+            config.get("output_type", "uinput"),
+            config.get("output_options", {}),
+        )
+
+        output_changed = (
+            reset_state
+            or self._keyboard_emulation is None
+            or self._output_params.type != output_params.type
+            or self._output_params.options != output_params.options
+        )
+
+        if output_changed:
+            try:
+                output_class = registry.get_plugin("output", output_params.type).obj
+            except KeyError:
+                log.error(
+                    "Unknown output backend %s, falling back to uinput",
+                    output_params.type,
+                )
+                output_class = registry.get_plugin("output", "uinput").obj
+                output_params = OutputParams("uinput", {})
+
+            old_output = self._keyboard_emulation
+
+            # instantiate new backend
+            self._keyboard_emulation = output_class(output_params.options)
+
+            # optional cleanup
+            if old_output is not None:
+                try:
+                    stop = getattr(old_output, "stop", None)
+                    if callable(stop):
+                        stop()
+                except Exception:
+                    log.error("failed stopping previous output backend", exc_info=True)
+
+            self._output_params = output_params
         # Update running extensions.
         enabled_extensions = config["enabled_extensions"]
         running_extensions = set(self._running_extensions)
@@ -574,11 +616,11 @@ class StenoEngine:
         """Sets the configuration property ``setting`` to ``value``."""
         self.config = {setting: value}
 
-    def reset_machine(self) -> None:
+    def reset_state(self) -> None:
         """Resets the machine state and Plover's connection with the machine, if
         necessary, and loads all the configuration and dictionaries.
         """
-        self._same_thread_hook(self._update, reset_machine=True)
+        self._same_thread_hook(self._update, reset_state=True)
 
     def load_config(self) -> bool:
         """Loads the Plover configuration file and returns ``True`` if it was

@@ -283,7 +283,7 @@ class MainWindow(QMainWindow, Ui_MainWindow, WindowStateMixin):
 
     @Slot()
     def reconnect(self):
-        self._engine.reset_machine()
+        self._engine.reset_state()
 
     @Slot()
     def open_about_dialog(self):

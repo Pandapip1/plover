@@ -20,7 +20,7 @@
 
    .. automethod:: load_config
 
-   .. automethod:: reset_machine
+   .. automethod:: reset_state
 
    .. automethod:: _send_engine_command
 
